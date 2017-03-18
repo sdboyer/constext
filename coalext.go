@@ -17,16 +17,19 @@ type constext struct {
 	err      error         // err set on cancel or timeout
 }
 
-func Cons(c1, c2 context.Context) (context.Context, context.CancelFunc) {
+func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 	cc := &constext{
-		car: c1,
-		cdr: c2,
+		car: l,
+		cdr: r,
 	}
 
 	if cc.car.Done() == nil && cc.car.Done() == nil {
-		return cc, func() { cc.cancel(context.Canceled) }
+		// Both parents are un-cancelable, so it's more technically correct to
+		// return a no-op func here.
+		return cc, func() {}
 	}
 
+	// Only make a done chan if at least some parents are cancelable.
 	cc.done = make(chan struct{})
 
 	if cc.car.Err() != nil {
