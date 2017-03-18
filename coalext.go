@@ -1,7 +1,7 @@
-// Package coalext provides facilities for coalescing multiple contexts together
-// so that they behave as one.
+// Package constext provides facilities for pairing contexts together so that
+// they behave as one.
 
-package coalext
+package constext
 
 import (
 	"context"
@@ -9,97 +9,110 @@ import (
 	"time"
 )
 
-type unionCtx struct {
-	head, tail context.Context
-	done       chan struct{} // chan closed on cancelFunc() call, or parent done
-	mu         sync.Mutex    // protects timer and err
-	timer      *time.Timer   // if either parent has a deadline
-	err        error         // err set on cancel or timeout
+type constext struct {
+	car, cdr context.Context
+	done     chan struct{} // chan closed on cancelFunc() call, or parent done
+	mu       sync.Mutex    // protects timer and err
+	timer    *time.Timer   // if either parent has a deadline
+	err      error         // err set on cancel or timeout
 }
 
-func Union(c1, c2 context.Context) (context.Context, context.CancelFunc) {
-	uc := &unionCtx{
-		head: c1,
-		tail: c2,
+func Cons(c1, c2 context.Context) (context.Context, context.CancelFunc) {
+	cc := &constext{
+		car: c1,
+		cdr: c2,
 	}
 
-	if uc.head.Done() == nil && uc.head.Done() == nil {
-		return uc, func() { uc.cancel(context.Canceled) }
+	if cc.car.Done() == nil && cc.car.Done() == nil {
+		return cc, func() { cc.cancel(context.Canceled) }
 	}
 
-	uc.done = make(chan struct{})
+	cc.done = make(chan struct{})
 
-	if uc.head.Err() != nil {
-		uc.err = uc.head.Err()
-		return uc, func() { uc.cancel(context.Canceled) }
+	if cc.car.Err() != nil {
+		cc.err = cc.car.Err()
+		return cc, func() { cc.cancel(context.Canceled) }
 	}
-	if uc.tail.Err() != nil {
-		uc.err = uc.tail.Err()
-		return uc, func() { uc.cancel(context.Canceled) }
+	if cc.cdr.Err() != nil {
+		cc.err = cc.cdr.Err()
+		return cc, func() { cc.cancel(context.Canceled) }
 	}
 
 	// If there's a deadline set, make sure we respect it.
-	if dl, ok := uc.Deadline(); ok {
+	if dl, ok := cc.Deadline(); ok {
 		d := dl.Sub(time.Now())
 		if d <= 0 {
-			uc.cancel(context.DeadlineExceeded)
-			return uc, func() { uc.cancel(context.Canceled) }
+			cc.cancel(context.DeadlineExceeded)
+			return cc, func() { cc.cancel(context.Canceled) }
 		}
-		uc.timer = time.AfterFunc(d, func() { uc.cancel(context.DeadlineExceeded) })
+		cc.timer = time.AfterFunc(d, func() { cc.cancel(context.DeadlineExceeded) })
 	}
 
 	go func() {
 		select {
-		case <-uc.head.Done():
-			uc.cancel(uc.head.Err())
-		case <-uc.tail.Done():
-			uc.cancel(uc.tail.Err())
+		case <-cc.car.Done():
+			cc.cancel(cc.car.Err())
+		case <-cc.cdr.Done():
+			cc.cancel(cc.cdr.Err())
 		}
 	}()
 
-	return uc, func() { uc.cancel(context.Canceled) }
+	return cc, func() { cc.cancel(context.Canceled) }
 }
 
-func (uc *unionCtx) cancel(err error) {
+func (cc *constext) cancel(err error) {
 	if err == nil {
-		panic("coalext: internal error: missing cancel error")
+		panic("constext: internal error: missing cancel error")
 	}
 
-	uc.mu.Lock()
-	if uc.err == nil {
-		uc.err = err
-		close(uc.done)
+	cc.mu.Lock()
+	if cc.err == nil {
+		cc.err = err
+		close(cc.done)
 
-		if uc.timer != nil {
-			uc.timer.Stop()
-			uc.timer = nil
+		if cc.timer != nil {
+			cc.timer.Stop()
+			cc.timer = nil
 		}
 	}
 
-	uc.mu.Unlock()
+	cc.mu.Unlock()
 }
 
-func (uc *unionCtx) Deadline() (time.Time, bool) {
-	if deadline, ok := uc.head.Deadline(); ok {
-		return deadline, ok
+func (cc *constext) Deadline() (time.Time, bool) {
+	hdeadline, hok := cc.car.Deadline()
+	tdeadline, tok := cc.cdr.Deadline()
+	if !hok && !tok {
+		return time.Time{}, false
 	}
-	return uc.tail.Deadline()
+
+	if hok && !tok {
+		return hdeadline, true
+	}
+	if !hok && tok {
+		return tdeadline, true
+	}
+
+	if hdeadline.Before(tdeadline) {
+		return hdeadline, true
+	}
+	return tdeadline, true
 }
 
-func (uc *unionCtx) Done() <-chan struct{} {
-	return uc.done
+func (cc *constext) Done() <-chan struct{} {
+	return cc.done
 }
 
-func (uc *unionCtx) Err() error {
-	uc.mu.Lock()
-	defer uc.mu.Unlock()
-	return uc.err
+func (cc *constext) Err() error {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	return cc.err
 }
 
-func (uc *unionCtx) Value(key interface{}) interface{} {
-	v := uc.head.Value(key)
+func (cc *constext) Value(key interface{}) interface{} {
+	v := cc.car.Value(key)
 	if v != nil {
 		return v
 	}
-	return uc.tail.Value(key)
+	return cc.cdr.Value(key)
 }

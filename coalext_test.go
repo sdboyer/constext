@@ -1,4 +1,4 @@
-package coalext
+package constext
 
 import (
 	"context"
@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-func TestCoalesceCancel(t *testing.T) {
+func TestConsCancel(t *testing.T) {
 	c1, cancel1 := context.WithCancel(context.Background())
 	c2, cancel2 := context.WithCancel(context.Background())
 
-	uc, _ := Union(c1, c2)
+	uc, _ := Cons(c1, c2)
 	if _, has := uc.Deadline(); has {
 		t.Fatal("coalesce ctx should not have a deadline if parents do not")
 	}
@@ -25,18 +25,18 @@ func TestCoalesceCancel(t *testing.T) {
 		t.Fatalf("timed out waiting for parent to quit; stacks:\n%s", buf[:n])
 	}
 
-	uc, _ = Union(c1, c2)
+	uc, _ = Cons(c1, c2)
 	if uc.Err() == nil {
 		t.Fatal("pre-canceled (c1) coalesced context did not begin canceled")
 	}
 
-	uc, _ = Union(c2, c1)
+	uc, _ = Cons(c2, c1)
 	if uc.Err() == nil {
 		t.Fatal("pre-canceled (c2) coalesced context did not begin canceled")
 	}
 
 	c3, _ := context.WithCancel(context.Background())
-	uc, _ = Union(c3, c2)
+	uc, _ = Cons(c3, c2)
 	cancel2()
 	select {
 	case <-uc.Done():
@@ -50,7 +50,7 @@ func TestCoalesceCancel(t *testing.T) {
 func TestCancelPassdown(t *testing.T) {
 	c1, cancel1 := context.WithCancel(context.Background())
 	c2, _ := context.WithCancel(context.Background())
-	uc, _ := Union(c1, c2)
+	uc, _ := Cons(c1, c2)
 	c3, _ := context.WithCancel(uc)
 
 	cancel1()
@@ -63,7 +63,7 @@ func TestCancelPassdown(t *testing.T) {
 	}
 
 	c1, cancel1 = context.WithCancel(context.Background())
-	uc, _ = Union(c1, c2)
+	uc, _ = Cons(c1, c2)
 	c3 = context.WithValue(uc, "foo", "bar")
 
 	cancel1()
@@ -79,7 +79,7 @@ func TestCancelPassdown(t *testing.T) {
 func TestValueUnion(t *testing.T) {
 	c1 := context.WithValue(context.Background(), "foo", "bar")
 	c2 := context.WithValue(context.Background(), "foo", "baz")
-	uc, _ := Union(c1, c2)
+	uc, _ := Cons(c1, c2)
 
 	v := uc.Value("foo")
 	if v != "bar" {
@@ -87,13 +87,13 @@ func TestValueUnion(t *testing.T) {
 	}
 
 	c3 := context.WithValue(context.Background(), "bar", "quux")
-	uc2, _ := Union(c1, c3)
+	uc2, _ := Cons(c1, c3)
 	v = uc2.Value("bar")
 	if v != "quux" {
 		t.Fatalf("wanted value from c2, \"quux\", got %q", v)
 	}
 
-	uc, _ = Union(uc, c3)
+	uc, _ = Cons(uc, c3)
 	v = uc.Value("bar")
 	if v != "quux" {
 		t.Fatalf("wanted value from nested c2, \"quux\", got %q", v)
