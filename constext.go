@@ -64,7 +64,6 @@ func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 			cc.cancel(context.DeadlineExceeded)
 			return cc, func() { cc.cancel(context.Canceled) }
 		}
-		cc.timer = time.AfterFunc(d, func() { cc.cancel(context.DeadlineExceeded) })
 	}
 
 	go func() {

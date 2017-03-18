@@ -145,4 +145,12 @@ func TestDeadline(t *testing.T) {
 	if cct != t1 {
 		t.Fatal("got wrong deadline time back")
 	}
+
+	select {
+	case <-cc.Done():
+	case <-time.After(t1.Sub(time.Now()) + 5*time.Millisecond):
+		buf := make([]byte, 10<<10)
+		n := runtime.Stack(buf, true)
+		t.Fatalf("car did not quit after deadline; stacks:\n%s", buf[:n])
+	}
 }
