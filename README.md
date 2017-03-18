@@ -5,8 +5,8 @@ together as a pair, conjoining them for the purpose of all `Context` behaviors:
 
 1. If either parent context is canceled, the constext is canceled. The
    err is set to whatever the err of the parent that was canceled.
-2. If either parent has a deadline, the constext inherits that same
-   deadline. If both have a deadline, it inherits the sooner one.
+2. If either parent has a deadline, the constext uses that same
+   deadline. If both have a deadline, it uses the sooner/lesser one.
 3. Values from both parents are unioned together. When a key is present in both
    parent trees, the left (first) context supercedes the right (second).
 
