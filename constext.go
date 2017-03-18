@@ -26,6 +26,13 @@ type constext struct {
 //  both have a deadline, it uses the sooner/lesser one.
 //  - Values from both parents are unioned together. When a key is present in
 //  both parent trees, the left (first) context supercedes the right (second).
+//
+// All the normal context.With*() funcs should incorporate constexts correctly.
+//
+// If the two parent contexts both return a nil channel from Done() (which can
+// occur if both parents are Background, or were created only through
+// context.WithValue()), then the returned cancelFunc() is a no-op; calling it
+// will NOT result in the termination of any sub-contexts later created.
 func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 	cc := &constext{
 		car: l,
