@@ -24,7 +24,7 @@ repeated calls:
 
 ```go
 cctx, _ := constext.Cons(context.Background(), context.Background())
-cctx2, _ := constext.Cons(context.Background(), cctx2)
+cctx2, _ := constext.Cons(context.Background(), cctx)
 ```
 
 ...not that that's a good idea.
