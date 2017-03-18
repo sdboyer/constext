@@ -1,4 +1,4 @@
-# constext
+# constext [![Doc Status](https://godoc.org/github.com/sdboyer/constext?status.png)](https://godoc.org/github.com/sdboyer/constext)
 
 constext allows you to [`cons`](https://en.wikipedia.org/wiki/Cons) `Context`s
 together as a pair, conjoining them for the purpose of all `Context` behaviors:
@@ -16,7 +16,7 @@ functions.
 Use is simple, and patterned after the `context` package:
 
 ```go
-cctx, _ := constext.Cons(context.Background(), context.Background())
+cctx, cancelFunc := constext.Cons(context.Background(), context.Background())
 ```
 
 True to the spirit of `cons`, trees of constexts can also be constructed through
