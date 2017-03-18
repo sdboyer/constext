@@ -23,8 +23,8 @@ True to the spirit of `cons`, trees of constexts can also be constructed through
 repeated calls:
 
 ```go
-cctx, _ := constext.Cons(context.Background(), context.Background())
-cctx2, _ := constext.Cons(context.Background(), cctx)
+bg := context.Background()
+cctx := constext.Cons(bg, constext.Cons(bg, constext.Cons(bg, bg)))
 ```
 
 ...not that that's a good idea.
