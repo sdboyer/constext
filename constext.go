@@ -61,6 +61,8 @@ func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 			cc.cancel(cc.car.Err())
 		case <-cc.cdr.Done():
 			cc.cancel(cc.cdr.Err())
+		case <-cc.done:
+			// Ensure the goroutine dies when canceled
 		}
 	}()
 
