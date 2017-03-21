@@ -39,7 +39,7 @@ func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 		cdr: r,
 	}
 
-	if cc.car.Done() == nil && cc.car.Done() == nil {
+	if cc.car.Done() == nil && cc.cdr.Done() == nil {
 		// Both parents are un-cancelable, so it's more technically correct to
 		// return a no-op func here.
 		return cc, func() {}
