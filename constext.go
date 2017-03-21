@@ -12,8 +12,8 @@ import (
 type constext struct {
 	car, cdr context.Context
 	done     chan struct{} // chan closed on cancelFunc() call, or parent done
+	once     sync.Once     // protects cancel func
 	mu       sync.Mutex    // protects timer and err
-	timer    *time.Timer   // if either parent has a deadline
 	err      error         // err set on cancel or timeout
 }
 
@@ -35,8 +35,9 @@ type constext struct {
 // will NOT result in the termination of any sub-contexts later created.
 func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 	cc := &constext{
-		car: l,
-		cdr: r,
+		car:  l,
+		cdr:  r,
+		done: make(chan struct{}),
 	}
 
 	if cc.car.Done() == nil && cc.cdr.Done() == nil {
@@ -45,25 +46,13 @@ func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 		return cc, func() {}
 	}
 
-	// Only make a done chan if at least some parents are cancelable.
-	cc.done = make(chan struct{})
-
 	if cc.car.Err() != nil {
-		cc.err = cc.car.Err()
-		return cc, func() { cc.cancel(context.Canceled) }
+		cc.cancel(cc.car.Err())
+		return cc, func() {}
 	}
 	if cc.cdr.Err() != nil {
-		cc.err = cc.cdr.Err()
-		return cc, func() { cc.cancel(context.Canceled) }
-	}
-
-	// If there's a deadline set, make sure we respect it.
-	if dl, ok := cc.Deadline(); ok {
-		d := dl.Sub(time.Now())
-		if d <= 0 {
-			cc.cancel(context.DeadlineExceeded)
-			return cc, func() { cc.cancel(context.Canceled) }
-		}
+		cc.cancel(cc.cdr.Err())
+		return cc, func() {}
 	}
 
 	go func() {
@@ -79,22 +68,18 @@ func Cons(l, r context.Context) (context.Context, context.CancelFunc) {
 }
 
 func (cc *constext) cancel(err error) {
-	if err == nil {
-		panic("constext: internal error: missing cancel error")
-	}
-
-	cc.mu.Lock()
-	if cc.err == nil {
-		cc.err = err
-		close(cc.done)
-
-		if cc.timer != nil {
-			cc.timer.Stop()
-			cc.timer = nil
+	cc.once.Do(func() {
+		if err == nil {
+			panic("constext: internal error: missing cancel error")
 		}
-	}
 
-	cc.mu.Unlock()
+		cc.mu.Lock()
+		if cc.err == nil {
+			cc.err = err
+			close(cc.done)
+		}
+		cc.mu.Unlock()
+	})
 }
 
 func (cc *constext) Deadline() (time.Time, bool) {
